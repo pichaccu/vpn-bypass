@@ -1,6 +1,8 @@
 using VpnBypass.Core.Rules;
 using Xunit;
 
+namespace VpnBypass.Core.Tests;
+
 public class PatternMatcherTests
 {
     [Theory]
