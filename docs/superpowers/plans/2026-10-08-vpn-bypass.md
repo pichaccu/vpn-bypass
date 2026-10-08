@@ -38,7 +38,7 @@ Dns sublayer:      63359fcc-b89d-4c49-81c9-c011a3eee3cd
 | `IOCTL_ST_INITIALIZE` | 1 | BUFFERED | `ST_SUBLAYER_GUIDS` (32 B) | – |
 | `IOCTL_ST_DEQUEUE_EVENT` | 2 | BUFFERED | – | `ST_EVENT_HEADER`+payload |
 | `IOCTL_ST_REGISTER_PROCESSES` | 3 | BUFFERED | discovery blob | – |
-| `IOCTL_ST_REGISTER_IP_ADDRESSES` | 4 | BUFFERED | `ST_IP_ADDRESSES` (44 B) | – |
+| `IOCTL_ST_REGISTER_IP_ADDRESSES` | 4 | BUFFERED | `ST_IP_ADDRESSES` (40 B) | – |
 | `IOCTL_ST_GET_IP_ADDRESSES` | 5 | BUFFERED | – | `ST_IP_ADDRESSES` |
 | `IOCTL_ST_SET_CONFIGURATION` | 6 | BUFFERED | config blob | – |
 | `IOCTL_ST_GET_CONFIGURATION` | 7 | BUFFERED | – | méret vagy config blob |
@@ -55,7 +55,7 @@ Pl. `IOCTL_ST_GET_STATE = (0x8000<<16)|(9<<2)|0 = 0x80000024`.
 ```
 ST_SUBLAYER_GUIDS      { GUID Baseline; GUID Dns; }                 // 16+16 = 32 B
 ST_IP_ADDRESSES        { IN_ADDR TunnelIpv4; IN_ADDR InternetIpv4;  // 4+4
-                         IN6_ADDR TunnelIpv6; IN6_ADDR InternetIpv6; } // 16+16 = 44 B
+                         IN6_ADDR TunnelIpv6; IN6_ADDR InternetIpv6; } // 4+4+16+16 = 40 B
 ST_CONFIGURATION_HEADER{ SIZE_T NumEntries; SIZE_T TotalLength; }   // 16 B
 ST_CONFIGURATION_ENTRY { SIZE_T ImageNameOffset; USHORT ImageNameLength; } // 8+2 → 16 B igazítva
 ST_PROCESS_DISCOVERY_HEADER { SIZE_T NumEntries; SIZE_T TotalLength; } // 16 B
@@ -70,7 +70,7 @@ A blob-oknál: fejléc, utána N bejegyzés tömbként, utána a stringpuffer; a
 
 ### Állapotgép-részletek (a driverből igazolva)
 
-- `IOCTL_ST_REGISTER_IP_ADDRESSES` bemenete pontosan 44 B kell legyen.
+- `IOCTL_ST_REGISTER_IP_ADDRESSES` bemenete pontosan 40 B kell legyen (4+4+16+16).
 - READY→ENGAGED csak ha: config nem üres **és** `VpnActive` (van érvényes tunnel v4 vagy v6). ENGAGED-ben a config kiürítése vagy a tunnel-cím eltűnése visszavisz READY-be.
 - Induláskor `IOCTL_ST_GET_STATE`; ha nem `STARTED`, előbb `IOCTL_ST_RESET` (siker → STARTED, hiba → ZOMBIE).
 
@@ -631,7 +631,7 @@ git commit -m "feat(core): VPN-felismeres (tunnel/internet adapter)"
   - `enum DriverState { None=0, Started=1, Initialized=2, Ready=3, Engaged=4, Zombie=5 }`
   - `static class Ioctl` konstansok: `Initialize=0x80000004, DequeueEvent=0x80000008, RegisterProcesses=0x8000000C, RegisterIpAddresses=0x80000010, GetIpAddresses=0x80000014, SetConfiguration=0x80000018, GetConfiguration=0x8000001C, ClearConfiguration=0x80000023 (NEITHER), GetState=0x80000024, QueryProcess=0x80000028, Reset=0x8000002F (NEITHER)`. **Kötelező: a konstansokat a `CTL_CODE` képlettel számítsd** egy `private static uint Ctl(uint function, uint method)` segéddel (`DeviceType=0x8000`, `Access=FILE_ANY_ACCESS=0`, `METHOD_BUFFERED=0`, `METHOD_NEITHER=3`), ne égesd be a hexet. A teszt ellenőrzi `GetState==0x80000024`-et és azt is, hogy `ClearConfiguration` és `Reset` METHOD_NEITHER (alsó 2 bit = 3), azaz `0x80000023` és `0x8000002F`.
   - `static byte[] DriverStructs.BuildConfiguration(IReadOnlyList<string> ntImagePaths)` — `ST_CONFIGURATION_HEADER` + bejegyzések (16 B igazítva) + UTF-16 stringpuffer; offset a stringpuffer elejéhez relatív; hossz null nélkül.
-  - `static byte[] DriverStructs.BuildIpAddresses(IPAddress? tunnelV4, IPAddress? internetV4, IPAddress? tunnelV6, IPAddress? internetV6)` — pontosan 44 bájt.
+  - `static byte[] DriverStructs.BuildIpAddresses(IPAddress? tunnelV4, IPAddress? internetV4, IPAddress? tunnelV6, IPAddress? internetV6)` — pontosan 40 bájt (4+4+16+16).
   - `static byte[] DriverStructs.BuildSublayerGuids(Guid baseline, Guid dns)` — 32 bájt.
 
 - [ ] **Step 1: Failing tesztek**

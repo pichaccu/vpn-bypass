@@ -1,0 +1,9 @@
+bin/
+obj/
+dist/
+driver/*.sys
+driver/*.inf
+driver/*.cat
+driver/*.pdb
+*.user
+.superpowers/
