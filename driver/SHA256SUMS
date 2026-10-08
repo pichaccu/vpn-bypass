@@ -1,0 +1,2 @@
+# A Mullvad split-tunnel driver rögzített SHA-256 hash-ei (x86_64, commit 5b6f46cde692…).
+# Az első `fetch-driver.ps1` futás tölti ki (TOFU); utána ellenőrzésre szolgál. Commitold be.
