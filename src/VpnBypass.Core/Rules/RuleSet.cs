@@ -15,6 +15,12 @@ public class RuleSet
 
     public bool TryAdd(ExclusionRule r, out string? error)
     {
+        // Üres/whitespace minta értelmetlen szabály (a létezés/.exe ellenőrzés a service dolga).
+        if (string.IsNullOrWhiteSpace(r.Pattern))
+        {
+            error = "A szabály mintája nem lehet üres.";
+            return false;
+        }
         if (_patterns.Contains(r.Pattern))
         {
             error = $"Ez a minta már szerepel a szabályok között: {r.Pattern}";

@@ -56,4 +56,16 @@ public class RuleSetTests
         Assert.False(set.RemoveByPattern(rule.Pattern)); // már nincs benne
         Assert.True(set.TryAdd(rule, out _));            // újra felvehető
     }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void Blank_pattern_is_rejected(string? pattern)
+    {
+        var set = new RuleSet();
+        Assert.False(set.TryAdd(new ExclusionRule("x", @"C:\a\x.exe", pattern!), out var err));
+        Assert.False(string.IsNullOrWhiteSpace(err));
+        Assert.Empty(set.Rules);
+    }
 }
