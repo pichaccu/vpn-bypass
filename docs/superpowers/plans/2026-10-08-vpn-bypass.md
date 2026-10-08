@@ -210,23 +210,40 @@ git add .gitignore scripts/fetch-driver.ps1 driver/SHA256SUMS
 git commit -m "chore: driver-letolto szkript es hash-ellenorzes"
 ```
 
-### Task 0.2: Kézi driver-próba (dokumentálás, a user futtatja)
+### Task 0.2: Kézi driver-füstteszt (a user futtatja)
 
 **Files:**
-- Create: `docs/phase0-manual-test.md`
+- Create: `docs/phase0-manual-test.md`, `tools/StProbe/StProbe.csproj`, `tools/StProbe/Program.cs`
 
-- [ ] **Step 1: Teszt-protokoll leírása**
+**Hatókör (pontosítva 2026-10-08):** a Fázis 0 a valódi kockázatot méri — **betöltődik-e**
+a driver ezen a HVCI-s gépen (aláírás/HVCI), **elérhető-e** a vezérlőeszköze, és **válaszol-e**
+a `GET_STATE`-re. A teljes „curl a saját IP-t látja" funkcionális próba a **Task 2.8** végén
+jön, amikor már létezik a WFP-réteg és a teljes IOCTL-sorozat. A füstteszt nem inicializál és
+nem állít szűrőt, a driver `Started` marad → tiszta leállás, kékhalál nem várható.
 
-A `docs/phase0-manual-test.md` tartalmazza: rendszer-visszaállítási pont készítése; `sc create vpnbypass-stdrv type= kernel binPath= <abszolút .sys>` vagy INF-telepítés `pnputil /add-driver`-rel; `sc start`; a referencia `stconsole.exe` (külön, a Mullvad repóból fordítva) vagy egy minimális C# próbakliens lépései: connect → initialize (a projekt GUID-jaival) → register-processes → register-ips (Ethernet + NordLynx címmel) → set-config (egy `curl`-másolat NT-útvonalával) → engaged ellenőrzése. Siker-kritérium: a kivett `curl` a saját publikus IP-t látja, a sima `curl` a NordVPN-ét; majd reset + `sc stop` + `sc delete` tisztán.
+- [ ] **Step 1: Minimális próbakliens (`tools/StProbe`)**
 
-- [ ] **Step 2: Commit**
+C# konzol (`net10.0-windows`, `win-x64`), a Core-ra hivatkozva: megnyitja a
+`\\.\MULLVADSPLITTUNNEL` eszközt, küld egy `IOCTL_ST_GET_STATE`-et (`Ioctl.GetState`),
+és kiírja a `DriverState`-et. Ez a Fázis 2 `SplitTunnelDevice` magja is.
+
+- [ ] **Step 2: Protokoll-dokumentum**
+
+A `docs/phase0-manual-test.md` turnkey, másolható lépései: (0) `Checkpoint-Computer`
+visszaállítási pont; (1) `scripts/fetch-driver.ps1`; (2) betöltés
+`sc.exe create vpnbypass-sttest type= kernel start= demand binPath= "<abszolút .sys>"` + `sc.exe start`;
+(3) `st-probe.exe` → elvárt `Started`, exit 0; (4) `sc.exe stop` + `sc.exe delete`.
+Siker-kritérium: RUNNING → Started → tiszta leállás, nincs BSOD.
+
+- [ ] **Step 3: Commit**
 
 ```bash
-git add docs/phase0-manual-test.md
-git commit -m "docs: fazis 0 kezi driver-teszt protokoll"
+git add docs/phase0-manual-test.md tools/StProbe/
+git commit -m "docs+tools: fazis 0 fuggteszt protokoll es probakliens"
 ```
 
-**STOP checkpoint:** a Fázis 1 csak akkor indul, ha a user visszajelezte, hogy a kézi próba sikeres volt ezen a gépen.
+**STOP checkpoint:** a Fázis 2 csak akkor indul, ha a user visszajelezte, hogy a füstteszt
+sikeres volt (RUNNING → Started → tiszta leállás). A Fázis 1 (Core) ettől függetlenül már kész.
 
 ---
 
