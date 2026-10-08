@@ -18,6 +18,11 @@ VPN-klienssel működjön, amelyik ezt nem tiltja (NordVPN, OpenVPN, WireGuard s
 - A frissítéskor verziószámos mappába költöző appok követése (Discord, MSIX/Store-appok).
 - Tálcaikon és pipálós ablak, élő ellenőrzéssel.
 - Telepítő és eltávolító szkriptek.
+- **Hordozhatóság:** a user több Windows-gépén (x64) is telepíthető legyen. Ehhez
+  **önálló (self-contained) csomag**: a .NET-futtatókörnyezetet is tartalmazza, így a
+  célgépen nem kell SDK/Visual Studio/forráskód. Minden gépspecifikus érték (hálózati
+  adapter, felhasználói SID, útvonalak) **telepítéskor vagy futásidőben** dől el, semmi
+  sincs a binárisba égetve. A driver a célgépen töltődik le és ellenőrződik.
 
 ### Hatókörön kívül
 
@@ -39,6 +44,7 @@ VPN-klienssel működjön, amelyik ezt nem tiltja (NordVPN, OpenVPN, WireGuard s
 | Elvetve: proxy alapú (driver nélkül) | hang és játék nem megy át proxyn |
 | Elvetve: DLL-injektálás, saját driver | vírusirtó-riasztás és ban-kockázat; aláírás nélkül nem tölthető be, a test-signing mód letiltaná az anti-cheatet |
 | A NordVPN saját split tunnelingje kikapcsolva marad, Mullvad app nem lehet fent | két split-tunnel driver ütközne; a Mullvad-eszköz exkluzív |
+| Self-contained `dotnet publish` (RID `win-x64`), hordozható csomag + `publish.ps1` | másik gépen ne kelljen SDK; a saját exe-k nincsenek saját tanúsítvánnyal aláírva → első indításkor SmartScreen-figyelmeztetés lehet (a driver a Mullvad-aláírással viszont rendben betölt) |
 
 Mért tények a fejlesztőgépen (2026-10-08): Windows 11 Pro 26200, x64, **HVCI be van
 kapcsolva** (a drivernek HVCI-kompatibilisnek kell lennie); a NordLynx, a TAP-NordVPN
@@ -201,13 +207,19 @@ Alapelv: hiba esetén minden a VPN-en menjen, és semmi ne maradjon félkész á
 - **`scripts/fetch-driver.ps1`:** a rögzített commitról letölti a `.sys`, `.inf`, `.cat`
   fájlt a `driver/` mappába; SHA-256 egyezés a `driver/SHA256SUMS`-szal; Authenticode-
   ellenőrzés (`Get-AuthenticodeSignature`). Letöltés csak a user engedélyével.
-- **`scripts/install.ps1`** (rendszergazdaként, a user futtatja):
-  1. Előfeltételek: x64, Windows 10 2004+ / 11, nincs Mullvad app, a driverfájlok ellenőrzöttek.
-  2. Build-kimenet → `C:\Program Files\vpn-bypass\` (service, tray, driver).
+- **`scripts/publish.ps1`** (a fejlesztőgépen, egyszer): `dotnet publish -c Release -r win-x64
+  --self-contained` a Service-re és a Tray-re, majd a kimenet + a `scripts/` + az ellenőrzött
+  `driver/` egy hordozható `dist/vpn-bypass/` mappába (opcionálisan zip). Ezt a mappát kell a
+  másik gépre átmásolni — ott nincs szükség SDK-ra, forrásra, sem buildre.
+- **`scripts/install.ps1`** (a célgépen, rendszergazdaként, a user futtatja a `dist` mappából):
+  1. Előfeltételek: x64, Windows 10 2004+ / 11, nincs Mullvad app; ha a `driver/` hiányzik vagy
+     nem ellenőrzött, lefuttatja a `fetch-driver.ps1`-t.
+  2. A self-contained kimenet bemásolása `C:\Program Files\vpn-bypass\`-ba (service, tray, driver).
   3. Driver telepítése (INF-ből vagy SCM kernel-szolgáltatásként – a 0. fázis dönti el).
   4. WFP provider + 2 sublayer létrehozása (perzisztens, alacsony súly).
   5. `VpnBypass.Service` regisztrálása: automatikus indulás, helyreállítás: újraindítás 5 s után.
-  6. Tálcaapp automatikus indítása (HKCU `Run`), a user SID-jének mentése a configba.
+  6. Tálcaapp automatikus indítása (HKCU `Run`), a telepítő user SID-jének mentése a configba.
+  A gépspecifikus értékek (adapter, SID) itt és futásidőben dőlnek el, nem a csomagban.
 - **`scripts/uninstall.ps1`:** tálcaapp leállítása → szolgáltatás leállítása (`RESET`)
   → állapot-ellenőrzés → driver-szolgáltatás leállítása és törlése (csak `STARTED`
   állapotban) → WFP-objektumok törlése → fájlok törlése (a config megtartható).

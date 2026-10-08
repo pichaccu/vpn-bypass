@@ -13,6 +13,7 @@
 ## Global Constraints
 
 - **Platform:** x64, Windows 10 2004+ / Windows 11; a fejlesztőgép HVCI-bekapcsolt (a driver HVCI-kompatibilis).
+- **Hordozhatóság (másik gépen is működjön):** a Service és a Tray `dotnet publish -c Release -r win-x64 --self-contained` kimenetként települ (a .NET-futtatókörnyezet bele van csomagolva), így a célgépen nincs szükség SDK-ra vagy forráskódra. Semmilyen gépspecifikus érték (adapter neve, felhasználói SID, útvonal) nincs a binárisba vagy a kódba égetve — mind telepítéskor vagy futásidőben dől el. A driver a célgépen töltődik le/ellenőrződik. A saját exe-k nincsenek kódaláírva → a célgépen első indításkor SmartScreen-figyelmeztetés lehet (ez elfogadható, a driver a Mullvad-aláírással rendben betölt).
 - **Driver verzió:** `win-split-tunnel` **1.3.0.0**, a `mullvad/mullvadvpn-app-binaries` repóból, rögzített commit `5b6f46cde692acb77ee74b37b9fd3f1678c45a52`, `x86_64-pc-windows-msvc/split-tunnel/` (`.sys`, `.inf`, `.cat`). A fájlok **nem** kerülnek a git-repóba; `fetch-driver.ps1` tölti le, SHA-256 + Authenticode ellenőrzéssel.
 - **Driver nem módosítható**; csak a dokumentált IOCTL-felületen vezéreljük.
 - **Projektnevek:** kisbetűs kebab-case a repó/termék szintjén (`vpn-bypass`); a .NET-projektek `VpnBypass.*` PascalCase névtérben.
@@ -998,7 +999,54 @@ git commit -m "feat(tray): pipalos lista es statusz"
 
 ---
 
-## Fázis 4 – Telepítő, eltávolító, végső tesztek
+## Fázis 4 – Csomagolás, telepítő, eltávolító, végső tesztek
+
+### Task 4.0: publish.ps1 (hordozható, self-contained csomag)
+
+**Files:**
+- Create: `scripts/publish.ps1`
+- Modify: `src/VpnBypass.Service/VpnBypass.Service.csproj`, `src/VpnBypass.Tray/VpnBypass.Tray.csproj` (publish-tulajdonságok)
+
+**Interfaces:**
+- Produces: `dist/vpn-bypass/` hordozható mappa (opcionálisan `dist/vpn-bypass.zip`), amely tartalmazza a Service és a Tray self-contained kimenetét, a `scripts/` mappát (install/uninstall/fetch-driver) és az ellenőrzött `driver/`-t. A másik gépre EZT kell átmásolni; ott nincs SDK/forrás/build.
+
+- [ ] **Step 1: Publish-tulajdonságok a két csproj-ba**
+
+Mindkét alkalmazás-projektbe (Service, Tray) a `<PropertyGroup>`-ba:
+```xml
+<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+<SelfContained>true</SelfContained>
+<PublishSingleFile>false</PublishSingleFile>
+```
+
+- [ ] **Step 2: `publish.ps1`**
+
+```powershell
+# Hordozható, self-contained csomagot készít a dist/ alá a másik gépre.
+$ErrorActionPreference = 'Stop'
+$root = Join-Path $PSScriptRoot '..'
+$dist = Join-Path $root 'dist\vpn-bypass'
+Remove-Item $dist -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $dist | Out-Null
+dotnet publish (Join-Path $root 'src\VpnBypass.Service') -c Release -r win-x64 --self-contained -o (Join-Path $dist 'service')
+dotnet publish (Join-Path $root 'src\VpnBypass.Tray')    -c Release -r win-x64 --self-contained -o (Join-Path $dist 'tray')
+Copy-Item (Join-Path $root 'scripts') (Join-Path $dist 'scripts') -Recurse
+Copy-Item (Join-Path $root 'driver')  (Join-Path $dist 'driver')  -Recurse -ErrorAction SilentlyContinue
+Compress-Archive -Path "$dist\*" -DestinationPath (Join-Path $root 'dist\vpn-bypass.zip') -Force
+Write-Host "Kesz: $dist (+ dist\vpn-bypass.zip)"
+```
+
+- [ ] **Step 3: Futtatás a fejlesztőgépen**
+
+Run: `pwsh -File scripts/publish.ps1`
+Expected: `dist/vpn-bypass/` létrejön service+tray+scripts+driver tartalommal; a service/tray mappában ott a `*.exe` és a bele csomagolt .NET-futtatókörnyezet.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "feat(scripts): hordozhato self-contained csomagolas"
+```
 
 ### Task 4.1: install.ps1
 
@@ -1006,15 +1054,15 @@ git commit -m "feat(tray): pipalos lista es statusz"
 - Create: `scripts/install.ps1`
 
 **Interfaces:**
-- Produces: rendszergazdai telepítő: előfeltételek (x64, Win10 2004+, nincs Mullvad app, driver ellenőrzött); build `-c Release`; kimenet `C:\Program Files\vpn-bypass\`; driver telepítése (a Fázis 0-ban bevált módon: INF `pnputil` vagy `sc create ... type= kernel`); WFP objektumok a Service első indulásakor jönnek létre; `vpnbypass` szolgáltatás regisztráció (`sc create`, `start= auto`, `sc failure ... reset= 0 actions= restart/5000`); tálcaapp a HKCU `Run`-ba; a telepítő user SID-je a configba.
+- Produces: rendszergazdai telepítő, amely a **csomag mappájából** (a saját `$PSScriptRoot`-ja melletti `service/`, `tray/`, `driver/`) telepít, build nélkül: előfeltételek (x64, Win10 2004+, nincs Mullvad app; ha a `driver/` hiányzik/nem ellenőrzött → `fetch-driver.ps1`); a self-contained kimenet bemásolása `C:\Program Files\vpn-bypass\`-ba; driver telepítése (a Fázis 0-ban bevált módon: INF `pnputil` vagy `sc create ... type= kernel`); WFP objektumok a Service első indulásakor jönnek létre; `vpnbypass` szolgáltatás regisztráció (`sc create`, `start= auto`, `sc failure ... reset= 0 actions= restart/5000`); tálcaapp a HKCU `Run`-ba; a telepítő user SID-je a configba. Semmi gépspecifikus nincs beégetve — minden itt/futásidőben dől el, ezért a csomag bármely x64 Windows-gépen települ.
 
-- [ ] **Step 1:** Szkript megírása; a driver-telepítés a Fázis 0 tapasztalata szerint.
-- [ ] **Step 2:** Futtatás a célgépen (a user, rendszergazdaként). Dokumentáld.
+- [ ] **Step 1:** Szkript megírása; forrásként a csomag `service/`/`tray/`/`driver/` mappái (NEM `dotnet build`); a driver-telepítés a Fázis 0 tapasztalata szerint.
+- [ ] **Step 2:** Futtatás a célgépen (a user, rendszergazdaként) a `dist` csomagból. Dokumentáld.
 - [ ] **Step 3: Commit**
 
 ```bash
 git add -A
-git commit -m "feat(scripts): telepito"
+git commit -m "feat(scripts): telepito a hordozhato csomagbol"
 ```
 
 ### Task 4.2: uninstall.ps1
