@@ -33,8 +33,10 @@ Write-Host "Authenticode (.cat): állapot=$($sig.Status); aláíró=$($sig.Signe
 if ($sig.Status -ne 'Valid') {
     throw "A katalógus Authenticode-állapota NEM 'Valid' ($($sig.Status)). Ne töltsd be a drivert!"
 }
-if ($sig.SignerCertificate.Subject -notmatch 'Mullvad') {
-    Write-Warning "Az aláíró nem tartalmazza a 'Mullvad' nevet – ellenőrizd kézzel: $($sig.SignerCertificate.Subject)"
+# Windows 10 1607 óta a kernel-drivereket a Microsoft írja alá (attestation signing): a gyártó
+# (Mullvad) beküldi, a végső aláíró a Microsoft. Más aláíróval Secure Boot mellett be sem töltene.
+if ($sig.SignerCertificate.Subject -notmatch 'CN=Microsoft Windows Hardware Compatibility Publisher') {
+    throw "Váratlan aláíró a katalóguson: $($sig.SignerCertificate.Subject). Ne töltsd be a drivert!"
 }
 
 # 2) SHA-256.
@@ -57,7 +59,11 @@ if ($existing.Count -gt 0) {
 } else {
     Write-Host ""
     Write-Host "SHA256SUMS üres/hiányzik – első futás, rögzítem a hash-eket (TOFU). Nézd át és commitold be."
-    $lines = foreach ($f in $files) {
+    $lines = @(
+        '# A Mullvad split-tunnel driver rogzitett SHA-256 hash-ei (x86_64, commit 5b6f46cde692...).'
+        '# Az elso fetch-driver.ps1 futas rogziti (TOFU); utana ellenorzesre szolgal. Commitold be.'
+    )
+    $lines += foreach ($f in $files) {
         $h = (Get-FileHash (Join-Path $dst $f) -Algorithm SHA256).Hash.ToLower()
         "$h  $f"
     }

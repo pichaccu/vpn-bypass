@@ -215,7 +215,7 @@ Alapelv: hiba esetén minden a VPN-en menjen, és semmi ne maradjon félkész á
   1. Előfeltételek: x64, Windows 10 2004+ / 11, nincs Mullvad app; ha a `driver/` hiányzik vagy
      nem ellenőrzött, lefuttatja a `fetch-driver.ps1`-t.
   2. A self-contained kimenet bemásolása `C:\Program Files\vpn-bypass\`-ba (service, tray, driver).
-  3. Driver telepítése (INF-ből vagy SCM kernel-szolgáltatásként – a 0. fázis dönti el).
+  3. Driver telepítése **SCM kernel-szolgáltatásként** (`sc create … type= kernel`) – a Fázis 0 (2026-10-12) igazolta, hogy így HVCI mellett is betölt; INF/eszköztelepítés nem kell.
   4. WFP provider + 2 sublayer létrehozása (perzisztens, alacsony súly).
   5. `VpnBypass.Service` regisztrálása: automatikus indulás, helyreállítás: újraindítás 5 s után.
   6. Tálcaapp automatikus indítása (HKCU `Run`), a telepítő user SID-jének mentése a configba.
