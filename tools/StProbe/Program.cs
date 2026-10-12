@@ -15,6 +15,9 @@ const uint GENERIC_WRITE = 0x40000000;
 const uint OPEN_EXISTING = 3;
 nint INVALID_HANDLE = -1;
 
+// A régi konzol (Windows PowerShell 5.1) kódlapja összezavarná az ékezeteket → UTF-8 kimenet.
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
 Console.WriteLine("vpn-bypass — Fázis 0 driver-füstteszt");
 Console.WriteLine($"Eszköz: {DeviceName}");
 Console.WriteLine($"GET_STATE IOCTL: 0x{Ioctl.GetState:X8}");
@@ -53,7 +56,7 @@ try
     Console.WriteLine();
     Console.WriteLine(state switch
     {
-        DriverState.Started => "SIKER: a driver betöltött és a vezérlőeszköz válaszol. Alapállapot (Started). ✔",
+        DriverState.Started => "SIKER: a driver betöltött és a vezérlőeszköz válaszol. Alapállapot (Started). [OK]",
         DriverState.Initialized or DriverState.Ready or DriverState.Engaged =>
             $"A driver válaszol, de nem alapállapotban van ({state}) – egy korábbi kliens hagyta így; RESET-tel vissza lehet állítani.",
         DriverState.Zombie => "FIGYELEM: a driver ZOMBIE állapotban van – újraindítás szükséges.",

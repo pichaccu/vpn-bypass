@@ -1,4 +1,4 @@
-# Letölti a rögzített Mullvad split-tunnel driver aláírt binárisait és ellenőrzi.
+﻿# Letölti a rögzített Mullvad split-tunnel driver aláírt binárisait és ellenőrzi.
 # Nem igényel rendszergazdai jogot (csak letöltés + ellenőrzés). A driver betöltése külön lépés.
 #
 # Ellenőrzés:

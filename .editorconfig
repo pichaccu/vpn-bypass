@@ -1,0 +1,11 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+
+# A Windows PowerShell 5.1 a BOM nélküli szkriptet a rendszer kódlapjával (pl. Windows-1250)
+# olvassa: a magyar ékezetek és a gondolatjel (–) bájtjai „idézőjellé” válnak, és a szkript
+# szétesik ("Missing type name after '['"). Ezért minden .ps1 UTF-8 BOM-mal.
+[*.ps1]
+charset = utf-8-bom
