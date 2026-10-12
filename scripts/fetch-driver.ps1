@@ -7,6 +7,9 @@
 #      Ha még üres (első futás), kiszámolja és beleírja (TOFU-rögzítés) – ezt commitold be.
 
 $ErrorActionPreference = 'Stop'
+# A régi Windows PowerShell 5.1 alapból TLS 1.0/1.1-et használ, amit a GitHub elutasít → TLS 1.2.
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$ProgressPreference = 'SilentlyContinue' # 5.1-ben a letöltés-progress sáv nagyon lassít
 $commit = '5b6f46cde692acb77ee74b37b9fd3f1678c45a52'
 $base   = "https://raw.githubusercontent.com/mullvad/mullvadvpn-app-binaries/$commit/x86_64-pc-windows-msvc/split-tunnel"
 $files  = 'mullvad-split-tunnel.sys', 'mullvad-split-tunnel.inf', 'mullvad-split-tunnel.cat'
