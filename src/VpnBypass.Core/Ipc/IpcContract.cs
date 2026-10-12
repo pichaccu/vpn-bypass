@@ -44,3 +44,6 @@ public record AppEntry(
 
 // A getApps válasza.
 public record AppsResponse(IReadOnlyList<AppEntry> Apps);
+
+// A módosító kérések (setExcluded, setPaused, setInternetAdapter) válasza.
+public record IpcResult(bool Ok, string? Error = null);

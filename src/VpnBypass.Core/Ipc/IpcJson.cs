@@ -13,6 +13,7 @@ namespace VpnBypass.Core.Ipc;
 [JsonSerializable(typeof(IpcRequest))]
 [JsonSerializable(typeof(StatusResponse))]
 [JsonSerializable(typeof(AppsResponse))]
+[JsonSerializable(typeof(IpcResult))]
 [JsonSerializable(typeof(AppConfig))]
 public partial class IpcJsonContext : JsonSerializerContext
 {
@@ -38,6 +39,12 @@ public static class IpcJson
 
     public static AppsResponse? DeserializeApps(string json) =>
         JsonSerializer.Deserialize(json, IpcJsonContext.Default.AppsResponse);
+
+    public static string Serialize(IpcResult result) =>
+        JsonSerializer.Serialize(result, IpcJsonContext.Default.IpcResult);
+
+    public static IpcResult? DeserializeResult(string json) =>
+        JsonSerializer.Deserialize(json, IpcJsonContext.Default.IpcResult);
 
     public static string Serialize(AppConfig config) =>
         JsonSerializer.Serialize(config, IpcJsonContext.Default.AppConfig);

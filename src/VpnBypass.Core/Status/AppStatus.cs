@@ -9,4 +9,5 @@ public enum AppStatus
     Blocked,    // a fizikai címről indított kapcsolat beragadt – vélhetően a VPN kill switch blokkol
     NotRunning, // nincs osztályozható (külső) kapcsolata
     NotFound,   // a program útvonala már nem létezik
+    Idle,       // fut, de most nincs külső kapcsolata (nem lehet megmondani, merre menne)
 }
