@@ -21,6 +21,7 @@ public sealed class ConfigStore(ILogger<ConfigStore> log)
             try
             {
                 if (!File.Exists(FilePath)) return AppConfig.Empty;
+                SecureDirectory.ThrowIfFileReparsePoint(FilePath);
                 var json = File.ReadAllText(FilePath);
                 return IpcJson.DeserializeConfig(json) ?? AppConfig.Empty;
             }
@@ -36,8 +37,10 @@ public sealed class ConfigStore(ILogger<ConfigStore> log)
     {
         lock (_gate)
         {
-            System.IO.Directory.CreateDirectory(Directory);
+            SecureDirectory.Ensure(Directory);
             var tmp = FilePath + ".tmp";
+            SecureDirectory.ThrowIfFileReparsePoint(tmp);
+            SecureDirectory.ThrowIfFileReparsePoint(FilePath);
             File.WriteAllText(tmp, IpcJson.Serialize(config));
             File.Move(tmp, FilePath, overwrite: true);
         }

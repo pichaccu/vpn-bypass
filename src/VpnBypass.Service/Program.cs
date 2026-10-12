@@ -26,6 +26,8 @@ if (!WindowsServiceHelpers.IsWindowsService())
 
 builder.Services.AddSingleton<PathResolver>();
 builder.Services.AddSingleton<ProcessSnapshot>();
+builder.Services.AddSingleton<NetworkMonitor>();
+builder.Services.AddSingleton<ConnectionTable>();
 builder.Services.AddSingleton<IFileSystem, WindowsFileSystem>();
 builder.Services.AddSingleton<ConfigStore>();
 builder.Services.AddSingleton<IDriverClient, DryRunDriverClient>();

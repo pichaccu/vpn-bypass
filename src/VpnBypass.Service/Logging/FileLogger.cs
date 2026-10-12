@@ -14,7 +14,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
         _dir = directory;
         try
         {
-            System.IO.Directory.CreateDirectory(_dir);
+            SecureDirectory.Ensure(_dir); // szigorú ACL (SYSTEM/Admins/user teljes, Users olvas)
             Cleanup();
         }
         catch { /* best-effort */ }
