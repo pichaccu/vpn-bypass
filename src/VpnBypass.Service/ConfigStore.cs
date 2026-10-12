@@ -39,9 +39,12 @@ public sealed class ConfigStore(ILogger<ConfigStore> log)
         {
             SecureDirectory.Ensure(Directory);
             var tmp = FilePath + ".tmp";
-            SecureDirectory.ThrowIfFileReparsePoint(tmp);
             SecureDirectory.ThrowIfFileReparsePoint(FilePath);
-            File.WriteAllText(tmp, IpcJson.Serialize(config));
+            if (File.Exists(tmp)) File.Delete(tmp); // esetleges beültetett fájl/link eldobása
+            // CreateNew: friss fájlt hozunk létre; ha valaki közben odatett valamit, elbukik, nem követ linket.
+            using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var sw = new StreamWriter(fs))
+                sw.Write(IpcJson.Serialize(config));
             File.Move(tmp, FilePath, overwrite: true);
         }
     }
