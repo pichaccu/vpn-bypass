@@ -69,6 +69,49 @@ public static class DriverStructs
         addr.GetAddressBytes().CopyTo(buf, offset); // 16 bájt (= IN6_ADDR)
     }
 
+    // ST_PROCESS_DISCOVERY_HEADER { SIZE_T NumEntries; SIZE_T TotalLength; } = 16 bájt.
+    // ST_PROCESS_DISCOVERY_ENTRY  { HANDLE ProcessId; HANDLE ParentProcessId;
+    //                               SIZE_T ImageNameOffset; USHORT ImageNameLength; } → 8-ra igazítva 32 bájt.
+    // Útvonal nélküli folyamatnál offset = 0 és hossz = 0 (a referenciakliens is így küldi).
+    public static byte[] BuildProcessDiscovery(IReadOnlyList<ProcessEntry> processes)
+    {
+        if (processes.Count == 0)
+            throw new ArgumentException("A folyamatlista nem lehet üres (a driver elutasítaná).", nameof(processes));
+
+        const int headerSize = 16;
+        const int entrySize = 32;
+
+        int stringBytes = 0;
+        foreach (var p in processes)
+            stringBytes += p.DevicePath.Length * sizeof(char);
+
+        int total = headerSize + entrySize * processes.Count + stringBytes;
+        var buf = new byte[total];
+
+        BitConverter.TryWriteBytes(buf.AsSpan(0), (long)processes.Count); // NumEntries
+        BitConverter.TryWriteBytes(buf.AsSpan(8), (long)total);          // TotalLength
+
+        int stringBase = headerSize + entrySize * processes.Count;
+        int stringOffset = 0;
+        for (int i = 0; i < processes.Count; i++)
+        {
+            var p = processes[i];
+            int entryAt = headerSize + i * entrySize;
+            BitConverter.TryWriteBytes(buf.AsSpan(entryAt), (long)p.ProcessId);           // HANDLE ProcessId
+            BitConverter.TryWriteBytes(buf.AsSpan(entryAt + 8), (long)p.ParentProcessId); // HANDLE ParentProcessId
+            if (p.DevicePath.Length == 0)
+                continue; // offset/hossz marad 0
+
+            int len = p.DevicePath.Length * sizeof(char);
+            BitConverter.TryWriteBytes(buf.AsSpan(entryAt + 16), (long)stringOffset);       // ImageNameOffset
+            BitConverter.TryWriteBytes(buf.AsSpan(entryAt + 24), (ushort)len);              // ImageNameLength
+            Encoding.Unicode.GetBytes(p.DevicePath, 0, p.DevicePath.Length, buf, stringBase + stringOffset);
+            stringOffset += len;
+        }
+
+        return buf;
+    }
+
     // ST_CONFIGURATION_HEADER { SIZE_T NumEntries; SIZE_T TotalLength; } = 16 bájt.
     // ST_CONFIGURATION_ENTRY  { SIZE_T ImageNameOffset; USHORT ImageNameLength; } → 8-ra igazítva 16 bájt.
     // Kiosztás: fejléc, majd N bejegyzés, majd a null-terminátor nélküli UTF-16 stringpuffer.
