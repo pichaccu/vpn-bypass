@@ -20,8 +20,11 @@ public sealed class ConfigStore(ILogger<ConfigStore> log)
         {
             try
             {
+                // Olvasás ELŐTT bizonyítjuk, hogy a mappa SYSTEM/Admin tulajdonú és zárt ACL-ű, és eldobunk
+                // egy esetlegesen beültetett (idegen tulajdonú) configot – nehogy támadói tartalmat olvassunk.
+                SecureDirectory.Ensure(Directory);
+                SecureDirectory.DeleteIfUntrustedOwner(FilePath);
                 if (!File.Exists(FilePath)) return AppConfig.Empty;
-                SecureDirectory.ThrowIfFileReparsePoint(FilePath);
                 var json = File.ReadAllText(FilePath);
                 return IpcJson.DeserializeConfig(json) ?? AppConfig.Empty;
             }
@@ -38,6 +41,7 @@ public sealed class ConfigStore(ILogger<ConfigStore> log)
         lock (_gate)
         {
             SecureDirectory.Ensure(Directory);
+            SecureDirectory.DeleteIfUntrustedOwner(FilePath); // beültetett config eldobása mentés előtt is
             var tmp = FilePath + ".tmp";
             SecureDirectory.ThrowIfFileReparsePoint(FilePath);
             if (File.Exists(tmp)) File.Delete(tmp); // esetleges beültetett fájl/link eldobása

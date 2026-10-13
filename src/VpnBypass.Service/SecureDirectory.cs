@@ -36,6 +36,41 @@ public static class SecureDirectory
             throw new IOException($"A fájl egy reparse point, biztonsági okból nem írom: {filePath}");
     }
 
+    // Egy nem megbízható tulajdonosú (pl. támadó által beültetett) fájlt eldob, hogy a tartalmát NE
+    // olvassuk/használjuk. A tartalom a támadóé – nem „javítjuk", töröljük. Ha a törlés nem megy, zárunk.
+    public static void DeleteIfUntrustedOwner(string filePath)
+    {
+        if (!File.Exists(filePath)) return;
+        if ((File.GetAttributes(filePath) & FileAttributes.ReparsePoint) != 0)
+        {
+            TryDeleteOrThrow(filePath);
+            return;
+        }
+        var owner = new FileInfo(filePath).GetAccessControl(AccessControlSections.Owner)
+            .GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+        if (!IsTrustedOwner(owner))
+            TryDeleteOrThrow(filePath);
+    }
+
+    private static void TryDeleteOrThrow(string filePath)
+    {
+        try { File.Delete(filePath); }
+        catch (Exception ex)
+        {
+            throw new UnauthorizedAccessException(
+                $"Nem megbízható tulajdonosú/reparse fájl nem távolítható el: {filePath}", ex);
+        }
+    }
+
+    private static bool IsTrustedOwner(SecurityIdentifier? owner)
+    {
+        if (owner is null) return false;
+        var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        using var me = WindowsIdentity.GetCurrent();
+        return owner.Equals(admins) || owner.Equals(system) || (me.User is { } s && owner.Equals(s));
+    }
+
     // A Root-tól a célig minden szint (a Root is), hogy a meglévő közbülső mappákat is megerősítsük.
     private static IEnumerable<string> LevelsFromRootTo(string full)
     {
@@ -56,21 +91,13 @@ public static class SecureDirectory
         var current = di.GetAccessControl(AccessControlSections.Owner);
         var owner = current.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
 
-        var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
-        using var me = WindowsIdentity.GetCurrent();
-        var meSid = me.User;
-
-        bool ownerTrusted = owner is not null &&
-            (owner.Equals(admins) || owner.Equals(system) || (meSid is not null && owner.Equals(meSid)));
-
-        if (!ownerTrusted)
+        if (!IsTrustedOwner(owner))
         {
             // Idegen tulajdonos: visszaállítjuk Administratorsra (SYSTEM-ként megy). Ha nem sikerül, zárunk.
             try
             {
                 var ownerFix = new DirectorySecurity();
-                ownerFix.SetOwner(admins);
+                ownerFix.SetOwner(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null));
                 di.SetAccessControl(ownerFix);
             }
             catch (Exception ex)
