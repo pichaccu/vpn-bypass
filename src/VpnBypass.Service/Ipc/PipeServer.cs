@@ -15,21 +15,41 @@ public sealed class PipeServer(ILogger<PipeServer> log, Func<string, string> han
 
     public async Task RunAsync(string? allowedUserSid, CancellationToken token)
     {
+        // Az ELSŐ példány FirstPipeInstance-szel: ha a nevet már más birtokolja (squatting), elbukunk.
+        NamedPipeServerStream? current;
+        try
+        {
+            current = CreateServer(allowedUserSid, firstInstance: true);
+        }
+        catch (IOException ex)
+        {
+            log.LogError(ex, "A '{Pipe}' named pipe nevét már birtokolja valaki – lehetséges squatting. A kiszolgálás NEM indul.", PipeName);
+            return;
+        }
+
         while (!token.IsCancellationRequested)
         {
             try
             {
-                using var server = CreateServer(allowedUserSid);
-                await server.WaitForConnectionAsync(token);
-                await ServeAsync(server, token);
+                await current.WaitForConnectionAsync(token);
+                // A nevet FOLYAMATOSAN birtokban tartjuk: a következő figyelő példányt még a jelenlegi
+                // kiszolgálása ELŐTT létrehozzuk, hogy sose legyen rés, amikor senki sem birtokolja a nevet.
+                var next = CreateServer(allowedUserSid, firstInstance: false);
+                try { await ServeAsync(current, token); }
+                finally { current.Dispose(); current = next; }
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
-                log.LogWarning(ex, "Pipe-kapcsolat hiba – újrapróbálom.");
+                log.LogWarning(ex, "Pipe-kapcsolat hiba – folytatom.");
+                try { current.Dispose(); } catch { }
+                try { current = CreateServer(allowedUserSid, firstInstance: false); }
+                catch (Exception ex2) { log.LogError(ex2, "Nem hozható létre új pipe-példány."); break; }
                 try { await Task.Delay(500, token); } catch { break; }
             }
         }
+
+        current.Dispose();
     }
 
     private async Task ServeAsync(NamedPipeServerStream server, CancellationToken token)
@@ -55,7 +75,7 @@ public sealed class PipeServer(ILogger<PipeServer> log, Func<string, string> han
         }
     }
 
-    private static NamedPipeServerStream CreateServer(string? allowedUserSid)
+    private static NamedPipeServerStream CreateServer(string? allowedUserSid, bool firstInstance)
     {
         var security = new PipeSecurity();
         security.AddAccessRule(new PipeAccessRule(
@@ -85,8 +105,12 @@ public sealed class PipeServer(ILogger<PipeServer> log, Func<string, string> han
             catch { /* érvénytelen SID: marad a SYSTEM+Admin hozzáférés */ }
         }
 
+        // FirstPipeInstance csak az első példánynál: így a létrehozás elbukik, ha a nevet már más birtokolja.
+        var options = PipeOptions.Asynchronous;
+        if (firstInstance) options |= PipeOptions.FirstPipeInstance;
+
         return NamedPipeServerStreamAcl.Create(
             PipeName, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0, security);
+            PipeTransmissionMode.Byte, options, 0, 0, security);
     }
 }
